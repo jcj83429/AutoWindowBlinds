@@ -126,9 +126,6 @@ void setMotorDirection(int direction){
   }
 }
 
-// FIXME: add a rotation sensor to know how much the motor has turned
-// instead of blindly turning for a fixed amount of time. Otherwise 
-// the motor position will drift with every open/close cycle
 void setCurtainState(CurtainState state){
   Serial.println(__FUNCTION__);
   if(state == currentCurtainState){
