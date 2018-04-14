@@ -5,9 +5,9 @@
 #define ANALOG_BITS 16
 #define ANALOG_FULLSCALE ((1 << ANALOG_BITS) - 1)
 
-#define MOTOR_SPEED 255
+#define MOTOR_SPEED 200
 #define ROTATIONS_TO_OPEN 4
-#define ROTATION_SENSOR_TIMEOUT 8000
+#define ROTATION_SENSOR_TIMEOUT 12000
 
 #define ERR_LOW_BATT 1
 #define ERR_ROTATION_FAIL 2
@@ -34,7 +34,7 @@
 #define PIN_MANUAL_SW 11
 
 #define RESISTANCE_THRESHOLD_DARK 50000
-#define RESISTANCE_THRESHOLD_LIGHT 10000
+#define RESISTANCE_THRESHOLD_LIGHT 35000
 
 enum CurtainState {
   CURTAIN_CLOSED = 0, 
@@ -69,7 +69,7 @@ LightState currentLightState = DARK;
 ////////////////////////////////////////////////////////////////
 
 void halt(int error){
-  setMotorDirection(MOTOR_STOP);
+  setMotorDirection(MOTOR_STOP, 0);
   digitalWrite(PIN_HV_EN_RELAY, LOW);
   
   digitalWrite(LED_BUILTIN, LOW);
@@ -109,15 +109,15 @@ bool readHallSensor(){
   return digitalRead(PIN_HALL_SENSOR_READ);
 }
 
-void setMotorDirection(int direction){
+void setMotorDirection(int direction, int motorSpeed){
   switch(direction){
   case MOTOR_FORWARD:
     analogWrite(PIN_MOTOR_REVERSE, 0);
-    analogWrite(PIN_MOTOR_FORWARD, MOTOR_SPEED);
+    analogWrite(PIN_MOTOR_FORWARD, motorSpeed);
     break;
   case MOTOR_REVERSE:
     analogWrite(PIN_MOTOR_FORWARD, 0);
-    analogWrite(PIN_MOTOR_REVERSE, MOTOR_SPEED);
+    analogWrite(PIN_MOTOR_REVERSE, motorSpeed);
     break;
   case MOTOR_STOP:
     analogWrite(PIN_MOTOR_FORWARD, 0);
@@ -126,7 +126,7 @@ void setMotorDirection(int direction){
   }
 }
 
-void setCurtainState(CurtainState state){
+void setCurtainState(CurtainState state, int motorSpeed){
   Serial.println(__FUNCTION__);
   if(state == currentCurtainState){
     return;
@@ -164,7 +164,7 @@ void setCurtainState(CurtainState state){
   if(targetPosition != currentCurtainPosition){
     digitalWrite(PIN_HV_EN_RELAY, HIGH);
     delay(1000);
-    setMotorDirection(motorDirection);
+    setMotorDirection(motorDirection, motorSpeed);
 
     bool lastHallSensorState = readHallSensor();
     unsigned long rotationStartTime = millis();
@@ -186,8 +186,9 @@ void setCurtainState(CurtainState state){
       }
       lastHallSensorState = newHallSensorState;
     }
+    delay(100); // make sure the magnet is clear of the hall sensor
 
-    setMotorDirection(MOTOR_STOP);
+    setMotorDirection(MOTOR_STOP, 0);
     digitalWrite(PIN_HV_EN_RELAY, LOW);
   }
 
@@ -201,9 +202,9 @@ void handleLightState(LightState state){
   }
 
   if(state == LIGHT){
-    setCurtainState(CURTAIN_OPEN);
+    setCurtainState(CURTAIN_OPEN, MOTOR_SPEED);
   }else{
-    setCurtainState(CURTAIN_CLOSED);
+    setCurtainState(CURTAIN_CLOSED, MOTOR_SPEED);
   }
 
   currentLightState = state;
@@ -243,7 +244,23 @@ void sleepDispatch(uint16_t sleepMs){
 #endif
 }
 
+// see K20P64M72SF1RM.pdf
+// This may be useless. The highest LV warning threshold supported is 3.0V.
+// This is below the min rated voltage for the L293D H-bridge and SS443A hall sensor.
+// The system may error out and halt due to rotation failure before the 3V3 line drops to 3.0V.
+void configureLowVoltageWarning(){
+  // choose high detect threshold, enable LV reset
+  PMC_LVDSC1 = PMC_LVDSC1_LVDV(1) | PMC_LVDSC1_LVDRE;
+  // choose highest warning threshold
+  PMC_LVDSC2 = PMC_LVDSC2_LVWV(3);
+}
+
+bool lowVoltageWarningTripped(){
+  return !!(PMC_LVDSC2 & PMC_LVDSC2_LVWF);
+}
+
 void setup() {
+  configureLowVoltageWarning();
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(PIN_HV_EN_RELAY, OUTPUT);
   pinMode(PIN_MOTOR_FORWARD, OUTPUT);
@@ -263,6 +280,10 @@ void setup() {
 }
 
 void loop() {
+  if(lowVoltageWarningTripped()){
+    halt(ERR_LOW_BATT);
+  }
+  
   uint32_t r;
   
   digitalWrite(LED_BUILTIN, HIGH);
@@ -270,7 +291,7 @@ void loop() {
 
   // manual toggle
   if(manualSwPressed()){
-    setCurtainState(static_cast<CurtainState>(currentCurtainState ^ 1));
+    setCurtainState(static_cast<CurtainState>(currentCurtainState ^ 1), 255);
     goto endloop;
   }
   
