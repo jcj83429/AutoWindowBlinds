@@ -5,7 +5,7 @@
 #define ANALOG_BITS 16
 #define ANALOG_FULLSCALE ((1 << ANALOG_BITS) - 1)
 
-#define MOTOR_SPEED 200
+#define MOTOR_SPEED 240
 #define ROTATIONS_TO_OPEN 4
 #define ROTATION_SENSOR_TIMEOUT 12000
 
@@ -32,9 +32,6 @@
 
 // push button for manually toggling open/close
 #define PIN_MANUAL_SW 11
-
-#define RESISTANCE_THRESHOLD_DARK 50000
-#define RESISTANCE_THRESHOLD_LIGHT 35000
 
 enum CurtainState {
   CURTAIN_CLOSED = 0, 
@@ -63,6 +60,19 @@ SnoozeBlock snoozeConfig(snoozeTimer, snoozeDigital);
 CurtainState currentCurtainState = CURTAIN_CLOSED;
 int currentCurtainPosition = 0;
 LightState currentLightState = DARK;
+
+// default light and dark threshold
+uint32_t resistanceThresholdDark = 50000;
+uint32_t resistanceThresholdLight = 35000;
+
+// brightness distribution in the last 24 hours.
+// each bucket covers 1000 ohms of resistance.
+// every 24 hours, the resistance thresholds are adjusted based on the brightness stat.
+#define RESISTANCE_STAT_BUCKETS 100
+#define RESISTANCE_STAT_BUCKET_SIZE 1000
+int resistanceStat[100] = {0};
+int resistanceStatSamples = 0;
+unsigned long lastThresholdAdjTime = 0;
 
 ////////////////////////////////////////////////////////////////
 // FUNCTIONS
@@ -186,7 +196,7 @@ void setCurtainState(CurtainState state, int motorSpeed){
       }
       lastHallSensorState = newHallSensorState;
     }
-    delay(100); // make sure the magnet is clear of the hall sensor
+    delay(300); // make sure the magnet is clear of the hall sensor
 
     setMotorDirection(MOTOR_STOP, 0);
     digitalWrite(PIN_HV_EN_RELAY, LOW);
@@ -210,16 +220,49 @@ void handleLightState(LightState state){
   currentLightState = state;
 }
 
+void doResistanceStat(uint32_t resistance){
+  int bucket = resistance / RESISTANCE_STAT_BUCKET_SIZE;
+  if(bucket >= RESISTANCE_STAT_BUCKETS){
+    bucket = RESISTANCE_STAT_BUCKETS - 1;
+  }
+  resistanceStat[bucket]++;
+  resistanceStatSamples++;
+
+  const unsigned long dayInMs = 24 * 3600 * 1000;
+  if(millis() - lastThresholdAdjTime > dayInMs){
+    int newThreshold = 0;
+    int cumulativeSamples = 0;
+    for(int i=0; i<RESISTANCE_STAT_BUCKETS; i++){
+      cumulativeSamples += resistanceStat[i];
+      if(cumulativeSamples >= resistanceStatSamples/2){
+        newThreshold = i * RESISTANCE_STAT_BUCKET_SIZE;
+        break;
+      }
+    }
+
+    resistanceThresholdDark = resistanceThresholdDark * 0.5 + (newThreshold * 1.15) * 0.5;
+    resistanceThresholdLight = resistanceThresholdLight * 0.5 + (newThreshold * 0.85) * 0.5;
+
+    resistanceStatSamples = 0;
+    for(int i=0; i<RESISTANCE_STAT_BUCKETS; i++){
+      resistanceStat[i] = 0;
+    }
+    lastThresholdAdjTime += dayInMs;
+  }
+}
+
 void handlePhotoresistorValue(uint32_t resistance){
   LightState newLightState;
-  if(resistance > RESISTANCE_THRESHOLD_DARK){
+  if(resistance > resistanceThresholdDark){
     newLightState = DARK;
-  }else if(resistance < RESISTANCE_THRESHOLD_LIGHT){
+  }else if(resistance < resistanceThresholdLight){
     newLightState = LIGHT;
   }else{
     return;
   }
   handleLightState(newLightState);
+
+  doResistanceStat(resistance);
 }
 
 void sleepDispatch(uint16_t sleepMs){
@@ -303,5 +346,5 @@ void loop() {
 
 endloop:
   digitalWrite(LED_BUILTIN, LOW);
-  sleepDispatch(10000);
+  sleepDispatch(60000);
 }
