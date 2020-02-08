@@ -29,6 +29,7 @@
 // To save power, only send power to the photo resistor when reading it
 #define PIN_PHOTORESISTOR_POWER 15
 #define PIN_PHOTORESISTOR_READ A0 // aka pin 14
+#define PHOTORESISTOR_PARTNER_R 10000
 
 // push button for manually toggling open/close
 #define PIN_MANUAL_SW 11
@@ -62,8 +63,8 @@ int currentCurtainPosition = 0;
 LightState currentLightState = DARK;
 
 // default light and dark threshold
-uint32_t resistanceThresholdDark = 50000;
-uint32_t resistanceThresholdLight = 35000;
+uint32_t resistanceThresholdDark = 50000 * 1.2;
+uint32_t resistanceThresholdLight = 50000 * 0.8;
 
 // brightness distribution in the last 24 hours.
 // each bucket covers 1000 ohms of resistance.
@@ -73,6 +74,10 @@ uint32_t resistanceThresholdLight = 35000;
 int resistanceStat[100] = {0};
 int resistanceStatSamples = 0;
 unsigned long lastThresholdAdjTime = 0;
+
+// When the blinds are open, it's dark outside and the lights are on, the photoresistor value is about 80k.
+// The limit needs to be less than 80k / 1.2 due to the +/- 20% margin for the dark and light thresholds.
+#define RESISTANCE_MEDIAN_LIMIT 60000
 
 ////////////////////////////////////////////////////////////////
 // FUNCTIONS
@@ -96,7 +101,7 @@ void halt(int error){
   }
 }
 
-// Wiring: 3.3v - photoresistor - 100K - GND
+// Wiring: 3.3v - photoresistor - partner_r - GND
 uint32_t readPhotoresistor(){
   digitalWrite(PIN_PHOTORESISTOR_POWER, HIGH);
   delayMicroseconds(1);
@@ -105,7 +110,7 @@ uint32_t readPhotoresistor(){
     analogVal16 += analogRead(PIN_PHOTORESISTOR_READ);
   }
   digitalWrite(PIN_PHOTORESISTOR_POWER, LOW);
-  uint32_t resistance = (ANALOG_FULLSCALE*16 - analogVal16) * 100000 / analogVal16;
+  uint32_t resistance = (ANALOG_FULLSCALE*16 - analogVal16) * PHOTORESISTOR_PARTNER_R / analogVal16;
   return resistance;
 }
 
@@ -240,8 +245,12 @@ void doResistanceStat(uint32_t resistance){
       }
     }
 
-    resistanceThresholdDark = resistanceThresholdDark * 0.5 + (newThreshold * 1.15) * 0.5;
-    resistanceThresholdLight = resistanceThresholdLight * 0.5 + (newThreshold * 0.85) * 0.5;
+    if(newThreshold > RESISTANCE_MEDIAN_LIMIT){
+      newThreshold = RESISTANCE_MEDIAN_LIMIT;
+    }
+
+    resistanceThresholdDark = resistanceThresholdDark * 0.5 + (newThreshold * 1.2) * 0.5;
+    resistanceThresholdLight = resistanceThresholdLight * 0.5 + (newThreshold * 0.8) * 0.5;
 
     resistanceStatSamples = 0;
     for(int i=0; i<RESISTANCE_STAT_BUCKETS; i++){
@@ -340,7 +349,11 @@ void loop() {
   
   r = readPhotoresistor();
   Serial.print("photoresistor R=");
-  Serial.println(r);
+  Serial.print(r);
+  Serial.print(" light=");
+  Serial.print(resistanceThresholdLight);
+  Serial.print(" dark=");
+  Serial.println(resistanceThresholdDark);
   handlePhotoresistorValue(r);
   
 
