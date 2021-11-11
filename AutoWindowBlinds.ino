@@ -1,9 +1,9 @@
+#include <Wire.h>
+#include "SparkFun_VEML6030_Ambient_Light_Sensor.h"
+
 // using snooze breaks USB serial print
 // disable snooze for debugging
 #define USE_SNOOZE 1
-
-#define ANALOG_BITS 16
-#define ANALOG_FULLSCALE ((1 << ANALOG_BITS) - 1)
 
 #define MOTOR_SPEED 240
 #define ROTATIONS_TO_OPEN 4
@@ -11,6 +11,7 @@
 
 #define ERR_LOW_BATT 1
 #define ERR_ROTATION_FAIL 2
+#define ERR_SENSOR_INIT 3
 
 #define MOTOR_FORWARD 1
 #define MOTOR_REVERSE -1
@@ -26,13 +27,10 @@
 #define PIN_MOTOR_REVERSE 9
 #define PIN_HALL_SENSOR_READ 8
 
-// To save power, only send power to the photo resistor when reading it
-#define PIN_PHOTORESISTOR_POWER 15
-#define PIN_PHOTORESISTOR_READ A0 // aka pin 14
-#define PHOTORESISTOR_PARTNER_R 10000
-
 // push button for manually toggling open/close
 #define PIN_MANUAL_SW 11
+
+#define VEML6030_ADDR 0x48
 
 enum CurtainState {
   CURTAIN_CLOSED = 0, 
@@ -63,21 +61,39 @@ int currentCurtainPosition = 0;
 LightState currentLightState = DARK;
 
 // default light and dark threshold
-uint32_t resistanceThresholdDark = 50000 * 1.2;
-uint32_t resistanceThresholdLight = 50000 * 0.8;
+float dbLuxThreshDark = -5;
+float dbLuxThreshLight = 5;
 
 // brightness distribution in the last 24 hours.
-// each bucket covers 1000 ohms of resistance.
+// each bucket is 1 dbLux.
 // every 24 hours, the resistance thresholds are adjusted based on the brightness stat.
-#define RESISTANCE_STAT_BUCKETS 100
-#define RESISTANCE_STAT_BUCKET_SIZE 1000
-int resistanceStat[100] = {0};
-int resistanceStatSamples = 0;
+#define DBLUX_STAT_BUCKETS 100
+// The sensor can sense 0.0036 to 120000 lux (-24.4 to +50.8 dbLux)
+#define DBLUX_STAT_BUCKET_OFFSET 25;
+int dbLuxStat[DBLUX_STAT_BUCKETS] = {0};
+int dbLuxStatSamples = 0;
 unsigned long lastThresholdAdjTime = 0;
 
-// When the blinds are open, it's dark outside and the lights are on, the photoresistor value is about 80k.
-// The limit needs to be less than 80k / 1.2 due to the +/- 20% margin for the dark and light thresholds.
-#define RESISTANCE_MEDIAN_LIMIT 60000
+// The data is noisy below 0 dbLux, so the threshold must be set higher than 0 dbLux
+#define DBLUX_MEDIAN_LIMIT 0
+
+SparkFun_Ambient_Light light(VEML6030_ADDR);
+
+float gainTimeSettings[10][2] = {
+  {2, 800},   // 0.0036
+  {2, 400},   // 0.0072
+  {2, 200},   // 0.0144
+  {2, 100},   // 0.0288
+  {2, 50},    // 0.0576
+  {2, 25},    // 0.1152
+  {1, 25},    // 0.2304
+  {0.25, 50}, // 0.4608
+  {0.25, 25}, // 0.9216
+  {0.125, 25},// 1.8432
+};
+
+const int numGainTimeSettings = 10;
+int curGainTimeSetting = 5;
 
 ////////////////////////////////////////////////////////////////
 // FUNCTIONS
@@ -101,17 +117,44 @@ void halt(int error){
   }
 }
 
-// Wiring: 3.3v - photoresistor - partner_r - GND
-uint32_t readPhotoresistor(){
-  digitalWrite(PIN_PHOTORESISTOR_POWER, HIGH);
-  delayMicroseconds(1);
-  uint64_t analogVal16 = 0;
-  for(int i=0; i<16; i++){
-    analogVal16 += analogRead(PIN_PHOTORESISTOR_READ);
+void setGainTimeSetting(int index){
+  curGainTimeSetting = index;
+  light.setGain(gainTimeSettings[index][0]);
+  light.setIntegTime(gainTimeSettings[index][1]);
+}
+
+float readLuxAutoRange(){
+  uint16_t rawValue = light._readRegister(AMBIENT_LIGHT_DATA_REG);
+  bool powSaveDisabled = false;
+  while((rawValue < 100 && curGainTimeSetting > 0) || (rawValue > 10000 && curGainTimeSetting < numGainTimeSettings - 1)){
+    if(!powSaveDisabled){
+      light.disablePowSave();
+      sleepDispatch(4000);
+      powSaveDisabled = true;
+    }
+    int oldIntegrationTime = gainTimeSettings[curGainTimeSetting][1];
+    if(rawValue < 100){
+      if(rawValue < 50 && curGainTimeSetting >= 2){
+        setGainTimeSetting(curGainTimeSetting - 2);
+      }else{
+        setGainTimeSetting(curGainTimeSetting - 1);
+      }
+    }else{
+      setGainTimeSetting(curGainTimeSetting + 1);
+    }
+    Serial.printf("adjusting resolution to %d\n", curGainTimeSetting);
+    sleepDispatch(oldIntegrationTime);
+    sleepDispatch(gainTimeSettings[curGainTimeSetting][1] * 1.2);
+    rawValue = light._readRegister(AMBIENT_LIGHT_DATA_REG);
   }
-  digitalWrite(PIN_PHOTORESISTOR_POWER, LOW);
-  uint32_t resistance = (ANALOG_FULLSCALE*16 - analogVal16) * PHOTORESISTOR_PARTNER_R / analogVal16;
-  return resistance;
+  if(powSaveDisabled){
+    light.enablePowSave();
+  }
+  float lux = light._calculateLux(rawValue);
+  if(lux > 1000){
+    lux = light._luxCompensation(lux);
+  }
+  return lux;
 }
 
 // Wiring: PIN_MANUAL_SW - push button - GND
@@ -225,53 +268,55 @@ void handleLightState(LightState state){
   currentLightState = state;
 }
 
-void doResistanceStat(uint32_t resistance){
-  int bucket = resistance / RESISTANCE_STAT_BUCKET_SIZE;
-  if(bucket >= RESISTANCE_STAT_BUCKETS){
-    bucket = RESISTANCE_STAT_BUCKETS - 1;
+void doLightStat(float dbLux){
+  int bucket = dbLux + DBLUX_STAT_BUCKET_OFFSET;
+  if(bucket >= DBLUX_STAT_BUCKETS){
+    bucket = DBLUX_STAT_BUCKETS - 1;
+  }else if (bucket < 0){
+    bucket = 0;
   }
-  resistanceStat[bucket]++;
-  resistanceStatSamples++;
+  dbLuxStat[bucket]++;
+  dbLuxStatSamples++;
 
   const unsigned long dayInMs = 24 * 3600 * 1000;
   if(millis() - lastThresholdAdjTime > dayInMs){
     int newThreshold = 0;
     int cumulativeSamples = 0;
-    for(int i=0; i<RESISTANCE_STAT_BUCKETS; i++){
-      cumulativeSamples += resistanceStat[i];
-      if(cumulativeSamples >= resistanceStatSamples/2){
-        newThreshold = i * RESISTANCE_STAT_BUCKET_SIZE;
+    for(int i=0; i<DBLUX_STAT_BUCKETS; i++){
+      cumulativeSamples += dbLuxStat[i];
+      if(cumulativeSamples >= dbLuxStatSamples/2){
+        newThreshold = i - DBLUX_STAT_BUCKET_OFFSET;
         break;
       }
     }
 
-    if(newThreshold > RESISTANCE_MEDIAN_LIMIT){
-      newThreshold = RESISTANCE_MEDIAN_LIMIT;
+    if(newThreshold < DBLUX_MEDIAN_LIMIT){
+      newThreshold = DBLUX_MEDIAN_LIMIT;
     }
 
-    resistanceThresholdDark = resistanceThresholdDark * 0.5 + (newThreshold * 1.2) * 0.5;
-    resistanceThresholdLight = resistanceThresholdLight * 0.5 + (newThreshold * 0.8) * 0.5;
+    dbLuxThreshDark = dbLuxThreshDark * 0.5 + (newThreshold - 5) * 0.5;
+    dbLuxThreshLight = dbLuxThreshLight * 0.5 + (newThreshold + 5) * 0.5;
 
-    resistanceStatSamples = 0;
-    for(int i=0; i<RESISTANCE_STAT_BUCKETS; i++){
-      resistanceStat[i] = 0;
+    dbLuxStatSamples = 0;
+    for(int i=0; i<DBLUX_STAT_BUCKETS; i++){
+      dbLuxStat[i] = 0;
     }
     lastThresholdAdjTime += dayInMs;
   }
 }
 
-void handlePhotoresistorValue(uint32_t resistance){
+void handleDbLux(float dbLux){
   LightState newLightState;
-  if(resistance > resistanceThresholdDark){
+  if(dbLux < dbLuxThreshDark){
     newLightState = DARK;
-  }else if(resistance < resistanceThresholdLight){
+  }else if(dbLux > dbLuxThreshLight){
     newLightState = LIGHT;
   }else{
     return;
   }
   handleLightState(newLightState);
 
-  doResistanceStat(resistance);
+  doLightStat(dbLux);
 }
 
 void sleepDispatch(uint16_t sleepMs){
@@ -317,11 +362,8 @@ void setup() {
   pinMode(PIN_HV_EN_RELAY, OUTPUT);
   pinMode(PIN_MOTOR_FORWARD, OUTPUT);
   pinMode(PIN_MOTOR_REVERSE, OUTPUT);
-  pinMode(PIN_PHOTORESISTOR_POWER, OUTPUT);
-  pinMode(PIN_PHOTORESISTOR_READ, INPUT);
   pinMode(PIN_MANUAL_SW, INPUT_PULLUP);
   pinMode(PIN_HALL_SENSOR_READ, INPUT_PULLUP);
-  analogReadResolution(ANALOG_BITS);
   analogWriteFrequency(PIN_MOTOR_FORWARD, 375000);
   
   Serial.begin(9600);
@@ -329,14 +371,22 @@ void setup() {
 #if USE_SNOOZE
   snoozeDigital.pinMode(PIN_MANUAL_SW, INPUT_PULLUP, FALLING);
 #endif
+
+  Wire.begin();
+  if(light.begin()){
+    Serial.println("Ready to sense some light!");
+  }else{
+    Serial.println("Could not communicate with the sensor!");
+    halt(ERR_SENSOR_INIT);
+  }
 }
 
 void loop() {
   if(lowVoltageWarningTripped()){
     halt(ERR_LOW_BATT);
   }
-  
-  uint32_t r;
+
+  float lux, dbLux;
   
   digitalWrite(LED_BUILTIN, HIGH);
 
@@ -347,14 +397,15 @@ void loop() {
     goto endloop;
   }
   
-  r = readPhotoresistor();
-  Serial.print("photoresistor R=");
-  Serial.print(r);
+  lux = readLuxAutoRange();
+  dbLux = 10.0 * log10(max(lux, 0.0036));
+  Serial.print("dbLux=");
+  Serial.print(dbLux);
   Serial.print(" light=");
-  Serial.print(resistanceThresholdLight);
+  Serial.print(dbLuxThreshLight);
   Serial.print(" dark=");
-  Serial.println(resistanceThresholdDark);
-  handlePhotoresistorValue(r);
+  Serial.println(dbLuxThreshDark);
+  handleDbLux(dbLux);
   
 
 endloop:
