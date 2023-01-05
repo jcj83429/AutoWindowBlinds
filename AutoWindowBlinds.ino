@@ -7,7 +7,7 @@
 
 #define MOTOR_SPEED 240
 #define ROTATIONS_TO_OPEN 4
-#define ROTATION_SENSOR_TIMEOUT 12000
+#define ROTATION_SENSOR_TIMEOUT 8000
 
 #define ERR_LOW_BATT 1
 #define ERR_ROTATION_FAIL 2
@@ -357,6 +357,9 @@ bool lowVoltageWarningTripped(){
 }
 
 void setup() {
+  // Wait a bit before turning on low voltage detection.
+  // Otherwise the LVD may trigger immediately and require a restart.
+  delay(100);
   configureLowVoltageWarning();
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(PIN_HV_EN_RELAY, OUTPUT);
