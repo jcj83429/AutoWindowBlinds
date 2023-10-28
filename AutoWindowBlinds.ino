@@ -58,6 +58,7 @@ SnoozeBlock snoozeConfig(snoozeTimer, snoozeDigital);
 // Assume the system powers on with the curtain closed!!!
 CurtainState currentCurtainState = CURTAIN_CLOSED;
 int currentCurtainPosition = 0;
+int openPosition = ROTATIONS_TO_OPEN;
 LightState currentLightState = DARK;
 
 // default light and dark threshold
@@ -184,17 +185,14 @@ void setMotorDirection(int direction, int motorSpeed){
   }
 }
 
-void setCurtainState(CurtainState state, int motorSpeed){
+void applyCurrentState(int motorSpeed){
   Serial.println(__FUNCTION__);
-  if(state == currentCurtainState){
-    return;
-  }
 
   int positionDelta;
   int targetPosition;
   int motorDirection;
-  if(state == CURTAIN_OPEN){
-    targetPosition = ROTATIONS_TO_OPEN;
+  if(currentCurtainState == CURTAIN_OPEN){
+    targetPosition = openPosition;
   }else{
     targetPosition = 0;
   }
@@ -251,7 +249,7 @@ void setCurtainState(CurtainState state, int motorSpeed){
   }
 
 done:
-  currentCurtainState = state;
+  return;
 }
 
 void handleLightState(LightState state){
@@ -260,12 +258,35 @@ void handleLightState(LightState state){
   }
 
   if(state == LIGHT){
-    setCurtainState(CURTAIN_OPEN, MOTOR_SPEED);
+    currentCurtainState = CURTAIN_OPEN;
   }else{
-    setCurtainState(CURTAIN_CLOSED, MOTOR_SPEED);
+    currentCurtainState = CURTAIN_CLOSED;
   }
 
   currentLightState = state;
+}
+
+// Adjust the position for the CURTAIN_OPEN state.
+// brighter -> less open
+void adjustOpenPosition(float dbLux) {
+  int minPos, maxPos;
+  if(dbLux > 34){
+    minPos = 2;
+    maxPos = 2;
+  }else if(dbLux > 32){
+    minPos = 2;
+    maxPos = 3;
+  }else if(dbLux > 30){
+    minPos = 3;
+    maxPos = 3;
+  }else if(dbLux > 28){
+    minPos = 3;
+    maxPos = ROTATIONS_TO_OPEN;
+  }else{
+    minPos = ROTATIONS_TO_OPEN;
+    maxPos = ROTATIONS_TO_OPEN;
+  }
+  openPosition = max(minPos, min(maxPos, openPosition));
 }
 
 void doLightStat(float dbLux){
@@ -306,15 +327,13 @@ void doLightStat(float dbLux){
 }
 
 void handleDbLux(float dbLux){
-  LightState newLightState;
   if(dbLux < dbLuxThreshDark){
-    newLightState = DARK;
+    handleLightState(DARK);
   }else if(dbLux > dbLuxThreshLight){
-    newLightState = LIGHT;
-  }else{
-    return;
+    handleLightState(LIGHT);
   }
-  handleLightState(newLightState);
+  adjustOpenPosition(dbLux);
+  applyCurrentState(MOTOR_SPEED);
 
   doLightStat(dbLux);
 }
@@ -396,7 +415,8 @@ void loop() {
 
   // manual toggle
   if(manualSwPressed()){
-    setCurtainState(static_cast<CurtainState>(currentCurtainState ^ 1), 255);
+    currentCurtainState = static_cast<CurtainState>(currentCurtainState ^ 1);
+    applyCurrentState(255);
     goto endloop;
   }
   
