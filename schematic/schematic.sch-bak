@@ -1,5 +1,41 @@
-EESchema Schematic File Version 4
-EELAYER 30 0
+EESchema Schematic File Version 2
+LIBS:power
+LIBS:device
+LIBS:switches
+LIBS:relays
+LIBS:motors
+LIBS:transistors
+LIBS:conn
+LIBS:linear
+LIBS:regul
+LIBS:74xx
+LIBS:cmos4000
+LIBS:adc-dac
+LIBS:memory
+LIBS:xilinx
+LIBS:microcontrollers
+LIBS:dsp
+LIBS:microchip
+LIBS:analog_switches
+LIBS:motorola
+LIBS:texas
+LIBS:intel
+LIBS:audio
+LIBS:interface
+LIBS:digital-audio
+LIBS:philips
+LIBS:display
+LIBS:cypress
+LIBS:siliconi
+LIBS:opto
+LIBS:atmel
+LIBS:contrib
+LIBS:valves
+LIBS:teensy
+LIBS:L293D
+LIBS:ss443a
+LIBS:schematic-cache
+EELAYER 25 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
@@ -14,7 +50,7 @@ Comment3 ""
 Comment4 ""
 $EndDescr
 $Comp
-L schematic-rescue:Motor_DC M?
+L Motor_DC M?
 U 1 1 5A92342A
 P 6200 4250
 F 0 "M?" H 6300 4350 50  0000 L CNN
@@ -25,7 +61,7 @@ F 3 "" H 6200 4160 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L schematic-rescue:Teensy3.2 U?
+L Teensy3.2 U?
 U 1 1 5A923643
 P 8850 3700
 F 0 "U?" H 8850 5200 60  0000 C CNN
@@ -36,7 +72,7 @@ F 3 "" H 8850 2900 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L device:Q_NPN_BCE Q?
+L Q_NPN_BCE Q?
 U 1 1 5A92373C
 P 3050 3650
 F 0 "Q?" H 3250 3700 50  0000 L CNN
@@ -47,7 +83,7 @@ F 3 "" H 3050 3650 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L device:Battery BT?
+L Battery BT?
 U 1 1 5A923C5A
 P 10700 4550
 F 0 "BT?" H 10800 4650 50  0000 L CNN
@@ -58,7 +94,7 @@ F 3 "" V 10700 4610 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:VCC #PWR?
+L VCC #PWR?
 U 1 1 5A923DE6
 P 10700 4000
 F 0 "#PWR?" H 10700 3850 50  0001 C CNN
@@ -69,7 +105,7 @@ F 3 "" H 10700 4000 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:GND #PWR?
+L GND #PWR?
 U 1 1 5A923E04
 P 10700 5100
 F 0 "#PWR?" H 10700 4850 50  0001 C CNN
@@ -80,7 +116,7 @@ F 3 "" H 10700 5100 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:VCC #PWR?
+L VCC #PWR?
 U 1 1 5A923EF7
 P 10200 4400
 F 0 "#PWR?" H 10200 4250 50  0001 C CNN
@@ -91,7 +127,7 @@ F 3 "" H 10200 4400 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:GND #PWR?
+L GND #PWR?
 U 1 1 5A923F38
 P 7450 2600
 F 0 "#PWR?" H 7450 2350 50  0001 C CNN
@@ -102,7 +138,7 @@ F 3 "" H 7450 2600 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:VCC #PWR?
+L VCC #PWR?
 U 1 1 5A924192
 P 3150 2150
 F 0 "#PWR?" H 3150 2000 50  0001 C CNN
@@ -113,7 +149,7 @@ F 3 "" H 3150 2150 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:GND #PWR?
+L GND #PWR?
 U 1 1 5A9241B0
 P 3150 4200
 F 0 "#PWR?" H 3150 3950 50  0001 C CNN
@@ -124,7 +160,7 @@ F 3 "" H 3150 4200 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L schematic-rescue:JW2 RL?
+L JW2 RL?
 U 1 1 5A924243
 P 3550 2800
 F 0 "RL?" H 4200 2950 50  0000 L CNN
@@ -135,7 +171,7 @@ F 3 "" H 3350 2800 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:GND #PWR?
+L GND #PWR?
 U 1 1 5A9242F3
 P 3700 2300
 F 0 "#PWR?" H 3700 2050 50  0001 C CNN
@@ -146,7 +182,7 @@ F 3 "" H 3700 2300 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L schematic-rescue:L293D U?
+L L293D U?
 U 1 1 5A9246D8
 P -4150 11450
 F 0 "U?" H -4050 11700 60  0000 C CNN
@@ -157,7 +193,7 @@ F 3 "" H -4150 11450 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L device:R R?
+L R R?
 U 1 1 5A924AD6
 P 4950 5050
 F 0 "R?" V 5030 5050 50  0000 C CNN
@@ -168,7 +204,7 @@ F 3 "" H 4950 5050 50  0001 C CNN
 	0    1    1    0   
 $EndComp
 $Comp
-L power:GND #PWR?
+L GND #PWR?
 U 1 1 5A924CA6
 P 4100 4200
 F 0 "#PWR?" H 4100 3950 50  0001 C CNN
@@ -179,7 +215,7 @@ F 3 "" H 4100 4200 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:GND #PWR?
+L GND #PWR?
 U 1 1 5A924CC8
 P 5900 4200
 F 0 "#PWR?" H 5900 3950 50  0001 C CNN
@@ -206,7 +242,7 @@ Wire Wire Line
 Wire Wire Line
 	3150 3850 3150 4200
 Wire Wire Line
-	3150 2150 3150 2200
+	3150 2150 3150 2500
 Wire Wire Line
 	3150 2200 4050 2200
 Connection ~ 3150 2200
@@ -223,9 +259,9 @@ Wire Wire Line
 Wire Wire Line
 	5750 3550 5750 3750
 Wire Wire Line
-	3950 3550 5750 3550
+	3950 3550 6050 3550
 Wire Wire Line
-	3950 3100 3950 3550
+	3950 3100 3950 5050
 Wire Wire Line
 	5900 4200 5750 4200
 Wire Wire Line
@@ -246,7 +282,7 @@ Wire Wire Line
 Connection ~ 5750 3550
 Connection ~ 3950 4800
 $Comp
-L power:GND #PWR?
+L GND #PWR?
 U 1 1 5A92587B
 P 6150 3600
 F 0 "#PWR?" H 6150 3350 50  0001 C CNN
@@ -282,10 +318,60 @@ Wire Wire Line
 	6750 3400 7850 3400
 Wire Wire Line
 	6750 3400 6750 4650
+$Comp
+L R_PHOTO R?
+U 1 1 5A92668A
+P 7300 4100
+F 0 "R?" H 7350 4150 50  0000 L CNN
+F 1 "R_PHOTO" H 7350 4100 50  0000 L TNN
+F 2 "" V 7350 3850 50  0001 L CNN
+F 3 "" H 7300 4050 50  0001 C CNN
+	1    7300 4100
+	1    0    0    -1  
+$EndComp
+$Comp
+L R R100K
+U 1 1 5A9267CC
+P 7000 4100
+F 0 "R100K" V 7080 4100 50  0000 C CNN
+F 1 "R" V 7000 4100 50  0000 C CNN
+F 2 "" V 6930 4100 50  0001 C CNN
+F 3 "" H 7000 4100 50  0001 C CNN
+	1    7000 4100
+	1    0    0    -1  
+$EndComp
+$Comp
+L GND #PWR?
+U 1 1 5A92683B
+P 7000 4350
+F 0 "#PWR?" H 7000 4100 50  0001 C CNN
+F 1 "GND" H 7000 4200 50  0000 C CNN
+F 2 "" H 7000 4350 50  0001 C CNN
+F 3 "" H 7000 4350 50  0001 C CNN
+	1    7000 4350
+	1    0    0    -1  
+$EndComp
 Wire Wire Line
 	6750 4650 5750 4650
+Wire Wire Line
+	7850 4500 7300 4500
+Wire Wire Line
+	7300 4500 7300 4250
+Wire Wire Line
+	7850 4400 7700 4400
+Wire Wire Line
+	7700 4400 7700 3800
+Wire Wire Line
+	7700 3800 7000 3800
+Wire Wire Line
+	7300 3800 7300 3950
+Wire Wire Line
+	7000 3800 7000 3950
+Connection ~ 7300 3800
+Wire Wire Line
+	7000 4250 7000 4350
 $Comp
-L device:R R1K
+L R R1K
 U 1 1 5A92723E
 P 2600 3350
 F 0 "R1K" V 2680 3350 50  0000 C CNN
@@ -302,7 +388,7 @@ Wire Wire Line
 Wire Wire Line
 	6150 3400 6150 3600
 $Comp
-L schematic-rescue:SS443A U?
+L SS443A U?
 U 1 1 5A927C6F
 P 6150 3050
 F 0 "U?" H 6150 3350 60  0000 C CNN
@@ -312,63 +398,4 @@ F 3 "" H 6150 3250 60  0001 C CNN
 	1    6150 3050
 	1    0    0    -1  
 $EndComp
-Wire Wire Line
-	3150 2200 3150 2500
-Wire Wire Line
-	3950 3550 3950 4800
-Wire Wire Line
-	5750 3550 6050 3550
-Wire Wire Line
-	3950 4800 3950 5050
-$Comp
-L schematic-rescue:VEML6030 U?
-U 1 1 653DF534
-P 7300 4800
-F 0 "U?" H 7333 5287 60  0000 C CNN
-F 1 "VEML6030" H 7333 5181 60  0000 C CNN
-F 2 "" H 7300 4600 60  0001 C CNN
-F 3 "" H 7300 4600 60  0001 C CNN
-	1    7300 4800
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	7850 4600 7750 4600
-Wire Wire Line
-	7550 4700 7650 4700
-Wire Wire Line
-	7850 4800 7550 4800
-Wire Wire Line
-	7550 4900 7850 4900
-$Comp
-L power:VCC #PWR?
-U 1 1 653F2DA9
-P 7650 4300
-F 0 "#PWR?" H 7650 4150 50  0001 C CNN
-F 1 "VCC" H 7650 4450 50  0000 C CNN
-F 2 "" H 7650 4300 50  0001 C CNN
-F 3 "" H 7650 4300 50  0001 C CNN
-	1    7650 4300
-	1    0    0    -1  
-$EndComp
-$Comp
-L power:GND #PWR?
-U 1 1 653F3B16
-P 7750 5100
-F 0 "#PWR?" H 7750 4850 50  0001 C CNN
-F 1 "GND" H 7750 4950 50  0000 C CNN
-F 2 "" H 7750 5100 50  0001 C CNN
-F 3 "" H 7750 5100 50  0001 C CNN
-	1    7750 5100
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	7650 4300 7650 4700
-Connection ~ 7650 4700
-Wire Wire Line
-	7650 4700 7850 4700
-Wire Wire Line
-	7750 5100 7750 4600
-Connection ~ 7750 4600
-Wire Wire Line
-	7750 4600 7550 4600
 $EndSCHEMATC
