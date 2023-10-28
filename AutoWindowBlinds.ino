@@ -197,34 +197,27 @@ void applyCurrentState(int motorSpeed){
     targetPosition = 0;
   }
 
-  if(targetPosition - currentCurtainPosition > 0){
-    motorDirection = MOTOR_DIR_CURTAIN_OPEN;
-    positionDelta = 1;
-  }else if(targetPosition - currentCurtainPosition < 0){
-    positionDelta = -1;
-    motorDirection = MOTOR_DIR_CURTAIN_CLOSE;
-  }else{
-    goto done;
+  if(targetPosition == currentCurtainPosition){
+    return;
   }
 
-  Serial.print("  motorDirection=");
-  Serial.println(motorDirection);
   Serial.print("  currentCurtainPosition=");
   Serial.println(currentCurtainPosition);
   Serial.print("  targetPosition=");
   Serial.println(targetPosition);
   Serial.print("  positionDelta=");
   Serial.println(positionDelta);
-  Serial.print("  rotations left = ");
-  Serial.println((targetPosition - currentCurtainPosition) / positionDelta);
-  if(targetPosition != currentCurtainPosition){
-    digitalWrite(PIN_HV_EN_RELAY, HIGH);
-    delay(1000);
-    setMotorDirection(motorDirection, motorSpeed);
 
-    bool lastHallSensorState = readHallSensor();
+  digitalWrite(PIN_HV_EN_RELAY, HIGH);
+  delay(1000);
+
+  if(targetPosition > currentCurtainPosition){
+    setMotorDirection(MOTOR_DIR_CURTAIN_OPEN, motorSpeed);
     unsigned long rotationStartTime = millis();
-    while((targetPosition - currentCurtainPosition) / positionDelta > 0){
+    bool lastHallSensorState = readHallSensor();
+    // When opening, go to targetposition+1 then come back to targetPosition
+    // This way the motor always stops where it would be when rotating in the close direction.
+    while(currentCurtainPosition < targetPosition + 1){
       bool newHallSensorState = readHallSensor();
       unsigned long currentTime = millis();
       digitalWrite(LED_BUILTIN, newHallSensorState);
@@ -235,7 +228,7 @@ void applyCurrentState(int motorSpeed){
       }
       
       if(newHallSensorState == 1 && lastHallSensorState == 0){
-        currentCurtainPosition += positionDelta;
+        currentCurtainPosition++;
         Serial.print("  currentCurtainPosition=");
         Serial.println(currentCurtainPosition);
         rotationStartTime = millis();
@@ -243,13 +236,37 @@ void applyCurrentState(int motorSpeed){
       lastHallSensorState = newHallSensorState;
     }
     delay(300); // make sure the magnet is clear of the hall sensor
-
-    setMotorDirection(MOTOR_STOP, 0);
-    digitalWrite(PIN_HV_EN_RELAY, LOW);
   }
 
-done:
-  return;
+  if(targetPosition < currentCurtainPosition){
+    setMotorDirection(MOTOR_DIR_CURTAIN_CLOSE, motorSpeed);
+    unsigned long rotationStartTime = millis();
+    bool lastHallSensorState = readHallSensor();
+    // When opening, go to targetposition+1 then come back to targetPosition
+    // This way the motor always stops near end of the position.
+    while(currentCurtainPosition > targetPosition){
+      bool newHallSensorState = readHallSensor();
+      unsigned long currentTime = millis();
+      digitalWrite(LED_BUILTIN, newHallSensorState);
+
+      if(currentTime - rotationStartTime > ROTATION_SENSOR_TIMEOUT){
+        Serial.println("HALT: MOTOR OR ROTATION SENSOR FAILED");
+        halt(ERR_ROTATION_FAIL);
+      }
+      
+      if(newHallSensorState == 1 && lastHallSensorState == 0){
+        currentCurtainPosition--;
+        Serial.print("  currentCurtainPosition=");
+        Serial.println(currentCurtainPosition);
+        rotationStartTime = millis();
+      }
+      lastHallSensorState = newHallSensorState;
+    }
+    delay(300); // make sure the magnet is clear of the hall sensor
+  }
+
+  setMotorDirection(MOTOR_STOP, 0);
+  digitalWrite(PIN_HV_EN_RELAY, LOW);
 }
 
 void handleLightState(LightState state){
